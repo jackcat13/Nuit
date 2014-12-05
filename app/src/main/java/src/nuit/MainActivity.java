@@ -1,113 +1,125 @@
 package src.nuit;
 
 import android.app.Activity;
-import android.net.ParseException;
-import android.os.AsyncTask;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-
+import android.widget.Toast;
 import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
+import org.json.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
-import java.io.IOException;
+
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+
 import java.util.ArrayList;
-import java.util.List;
-
-import model.Service;
-import model.Type_personne;
-
 
 public class MainActivity extends Activity {
 
-    private ServiceAsyncRecherche mAsyncTask;
-    private ArrayList<Type_personne> listTypesPersonne;
+    // Google Map
+    private GoogleMap googleMap;
+    CameraPosition cameraPosition = new CameraPosition.Builder().target(
+            new LatLng(17.385044, 78.486671)).zoom(12).build();
 
-    private boolean isFull = false;
+    //Define marker
+    double latitude = 50;
+    double longitude = 50;
+    MarkerOptions marker = new MarkerOptions().position(new LatLng(latitude, longitude)).title("You");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        listTypesPersonne = new ArrayList<Type_personne>();
+        try
+        {
+            // Loading map
+            initilizeMap();
 
-        LinearLayout ll = (LinearLayout) findViewById(R.id.lolLayout);
+            googleMap.setMyLocationEnabled(true);
+            googleMap.addMarker(marker);
+            googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
 
-        //Initialisation de la tache asynchrone
-        mAsyncTask = new ServiceAsyncRecherche();
+            String donneZone = "{    point0:    {        lat: 100.00,        lng: 100.00    },    point1:     {        lat: 150.00,        lng: 100.00    },    point2:     {        lat: 150.00,        lng: 150.00    },    point3:     {        lat: 100.00,        lng:150.00    }}";
+            afficheZoneChoisie(donneZone);
 
-        //Lancement de la tâche asynchrone
-        mAsyncTask.execute();
-
-        while (isFull == false);
-
-        for (Type_personne t: listTypesPersonne ){
-            TextView text = new TextView(this);
-            text.setText(t+"");
-            this.addContentView(text, ll.getLayoutParams());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
     }
 
-    //Tache asynchrone permettant de lancer une requette http au webservice
-    private class ServiceAsyncRecherche extends AsyncTask<Void, Void, Void> {
-        @Override
-        protected Void doInBackground(Void... arg0) {
+    /**
+     * function to load map. If map is not created it will create it for you
+     */
+    private void initilizeMap() {
+        if (googleMap == null) {
+            googleMap = ((MapFragment) getFragmentManager().findFragmentById(
+                    R.id.map)).getMap();
 
-            String donneesUser;
-            String error;
-            JSONArray array;
-            Object obj;
-            JSONParser parser = new JSONParser();
-            JSONArray donnees = new JSONArray();
-
-            try {
-                donneesUser = Service.getResult("?select=1&requete=1");//Envoie de la requete au serviceweb
-                array = (JSONArray) parser.parse(donneesUser); //Parse le résultat de la requete dans un tableau d'objets JSON
-                System.out.println(array);
-
-                for (int i = 0; i < array.size(); i++) {
-                    listTypesPersonne.add(new Type_personne()); //Crée un utilisateur dans une liste pour chaque utilisateur de la requete
-
-                    //Instancie l'utilisateur crée avec les informations issues de la requête
-                    listTypesPersonne.get(i).setIdType_personne(Integer.parseInt((String) ((JSONObject) array.get(i)).get("idTypePersonne")));
-                    listTypesPersonne.get(i).setLibelleType_personne((String) ((JSONObject) array.get(i)).get("LIBELLETYPEPERSONNE"));
-                }
-                isFull = true;
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (ParseException e) {
-                e.printStackTrace();
-            } catch (org.json.simple.parser.ParseException e) {
-                e.printStackTrace();
+            // check if map is created successfully or not
+            if (googleMap == null) {
+                Toast.makeText(getApplicationContext(),
+                        "Sorry! unable to create maps", Toast.LENGTH_SHORT)
+                        .show();
             }
-            return null;
         }
-    } // ServiceAsync ();
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+    protected void onResume() {
+        super.onResume();
+        initilizeMap();
+    }
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+    public void afficheZoneChoisie(String donneeZone)
+    {
+        ArrayList<ArrayList<Double>> listeZone = new ArrayList<ArrayList<Double>>();
+        JSONParser parser = new JSONParser();
+
+        try {
+
+            JSONArray array = (JSONArray)(parser.parse(donneeZone));
+
+            for(int i = 0; i < array.size(); i ++)
+            {
+
+                JSONArray array2 = (JSONArray)(parser.parse((String)(array.get(i))));
+
+                listeZone.add(new ArrayList<Double>());
+
+                listeZone.get(i).add(Double.parseDouble((String)(array2.get(0))));
+                listeZone.get(i).add(Double.parseDouble((String)(array2.get(1))));
+                System.out.println(Double.parseDouble((String)(array2.get(0))));
+                System.out.println(Double.parseDouble((String)(array2.get(1))));
+            }
+            afficheZone(listeZone);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+    }
 
-        return super.onOptionsItemSelected(item);
+    public void afficheZone(ArrayList<ArrayList<Double>> listeZone)
+    {
+        PolygonOptions rectOptions = new PolygonOptions();
+        rectOptions.strokeColor(Color.BLACK);
+        rectOptions.fillColor(0x5500ff00);
+        rectOptions.strokeWidth(2);
+
+        for (int i = 0; i < listeZone.size(); i++)
+            rectOptions.add(new LatLng(listeZone.get(i).get(0), listeZone.get(i).get(1)));
+
+        googleMap.addPolygon(rectOptions);
     }
 }
